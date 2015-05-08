@@ -56,5 +56,4 @@ Pester-based tests are located in ```<branch>/Remotely.Tests.ps1```
 
 * Ensure Pester is installed on the machine
 * Run tests:
-```powershell
-.\Remotely.Tests.ps1
+    .\Remotely.Tests.ps1
