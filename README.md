@@ -7,6 +7,7 @@ Description
 The contents on the Remotely block are executed on a remote runspace. The connection information of the runspace is supplied in a CSV file of the format:
 
 ```
+ComputerName,Username,Password
 ComputerName1,Username1,Password1
 ComputerName2,Username2,Password2
 ```
@@ -21,6 +22,7 @@ is created for executing the script block.
 If the password has a ',' then it needs to be escaped by using quotes like: 
 
 ```
+ComputerName,Username,Password
 ComputerName1,Username1,Password1
 ComputerName2,Username2,"Some,other,password"
 ```
