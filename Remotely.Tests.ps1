@@ -50,6 +50,11 @@
         $output = Remotely { $false }
         $output | Should Be $false
     }
+
+    It 'can return throw messages' {
+        $output = Remotely { throw 'bad' }
+        $output.GetError().FullyQualifiedErrorId | Should Be 'bad'
+    }
     
     It "can get remote sessions" {
         Remotely { 1 + 1 } | Should Be 2
