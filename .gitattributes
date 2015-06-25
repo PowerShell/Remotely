@@ -1,6 +1,0 @@
-# Auto detect text files and perform LF normalization
-* text=auto
-*.ps1 text
-*.psd1 text
-*.psm1 text
-*.csv text

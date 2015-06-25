@@ -113,6 +113,12 @@ param(
     $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetDebugOutput -Value { return $this.__Streams.DebugOutput }
     $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetProgressOutput -Value { return $this.__Streams.ProgressOutput }
     $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetWarning -Value { return $this.__Streams.Warning }
+
+    if($testjob.State -eq 'Failed')
+    {
+	    $testjob | Receive-Job -ErrorAction SilentlyContinue -ErrorVariable jobError
+	    $outputStream.__Streams.Error = $jobError
+    }
     
     $testjob | Remove-Job -Force
     ,$outputStream
