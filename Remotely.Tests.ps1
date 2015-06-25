@@ -45,6 +45,11 @@
         $output.GetProgressOutput().StatusDescription | Should Be "Testing"
         $output.GetProgressOutput().ActivityId | Should Be 1
     }
+
+    It 'can return $false as a value' {
+        $output = Remotely { $false }
+        $output | Should Be $false
+    }
     
     It "can get remote sessions" {
         Remotely { 1 + 1 } | Should Be 2

@@ -84,7 +84,7 @@ param(
     
     $testjob = Invoke-Command -Session $sessions -ScriptBlock $test -AsJob -ArgumentList $ArgumentList | Wait-Job
 
-    if(-not $testjob.ChildJobs[0].Output)
+    if($testjob.ChildJobs[0].Output.Count -eq 0)
     {
         [object] $outputStream = New-Object psobject
     }
