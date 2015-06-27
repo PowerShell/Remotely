@@ -69,6 +69,11 @@
         $process | Should Be 11
     }
 
+    It "can get location of the remotely block" {
+        $output = Remotely { 1 } 
+        $output.Location | Should Be "localhost"
+    }
+
     It "can handle delete sessions" {
         Remotely { 1 + 1 } | Should Be 2
         $previousSession = Get-RemoteSession 
@@ -79,7 +84,32 @@
         $newSession = Get-RemoteSession
         $previousSession.Name | Should Not Be $newSession.Name
     }
-
+    
+    It "can execute against more than 1 remote machines" {
+        $configFile = (join-path $PSScriptRoot 'machineConfig.csv')
+        $configContent = @([pscustomobject] @{ComputerName = "localhost" }, [pscustomobject] @{ComputerName = "." }) | ConvertTo-Csv -NoTypeInformation
+        $configContent | Out-File -FilePath $configFile -Force
+        
+        try
+        {
+            $results = Remotely { 1 + 1 }  
+            $results.Count | Should Be 2
+        
+            foreach($result in $results)
+            {
+                $result | Should Be 2 
+            }
+        }
+        catch
+        {
+            $_.FullyQualifiedErrorId | Should Be $null
+        }
+        finally
+        {
+            Remove-Item $configFile -ErrorAction SilentlyContinue -Force
+        }
+    }
+    
     It "can clear remote sessions" {
         Clear-RemoteSession
         Get-PSSession -Name Remotely* | Should Be $null                
