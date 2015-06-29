@@ -84,44 +84,52 @@ param(
     
     $testjob = Invoke-Command -Session $sessions -ScriptBlock $test -AsJob -ArgumentList $ArgumentList | Wait-Job
 
-    if($testjob.ChildJobs[0].Output.Count -eq 0)
+    $results = @()
+
+    foreach($childJob in $testjob.ChildJobs)
     {
-        [object] $outputStream = New-Object psobject
-    }
-    else
-    {
-        [object] $outputStream = $testjob.ChildJobs[0].Output | % { $_ }
+        if($childJob.Output.Count -eq 0)
+        {
+            [object] $outputStream = New-Object psobject
+        }
+        else
+        {
+            [object] $outputStream = $childJob.Output | % { $_ }            
+        }
+
+        $errorStream =    CopyStreams $childJob.Error
+        $verboseStream =  CopyStreams $childJob.Verbose
+        $debugStream =    CopyStreams $childJob.Debug
+        $warningStream =  CopyStreams $childJob.Warning
+        $progressStream = CopyStreams $childJob.Progress    
+    
+        $allStreams = @{ 
+                            Error = $errorStream
+                            Verbose = $verboseStream
+                            DebugOutput = $debugStream
+                            Warning = $warningStream
+                            ProgressOutput = $progressStream
+                        }
+    
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name __Streams -Value $allStreams
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetError -Value { return $this.__Streams.Error }
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetVerbose -Value { return $this.__Streams.Verbose }
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetDebugOutput -Value { return $this.__Streams.DebugOutput }
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetProgressOutput -Value { return $this.__Streams.ProgressOutput }
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetWarning -Value { return $this.__Streams.Warning }
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name Location -Value $childJob.Location
+
+        if($childJob.State -eq 'Failed')
+        {
+	        $childJob | Receive-Job -ErrorAction SilentlyContinue -ErrorVariable jobError
+	        $outputStream.__Streams.Error = $jobError
+        }
+
+        $results += ,$outputStream
     }
 
-    $errorStream =    CopyStreams $testjob.ChildJobs[0].Error
-    $verboseStream =  CopyStreams $testjob.ChildJobs[0].Verbose
-    $debugStream =    CopyStreams $testjob.ChildJobs[0].Debug
-    $warningStream =  CopyStreams $testjob.ChildJobs[0].Warning
-    $progressStream = CopyStreams $testjob.ChildJobs[0].Progress    
-    
-    $allStreams = @{ 
-                        Error = $errorStream
-                        Verbose = $verboseStream
-                        DebugOutput = $debugStream
-                        Warning = $warningStream
-                        ProgressOutput = $progressStream
-                    }
-    
-    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name __Streams -Value $allStreams
-    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetError -Value { return $this.__Streams.Error }
-    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetVerbose -Value { return $this.__Streams.Verbose }
-    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetDebugOutput -Value { return $this.__Streams.DebugOutput }
-    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetProgressOutput -Value { return $this.__Streams.ProgressOutput }
-    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetWarning -Value { return $this.__Streams.Warning }
-
-    if($testjob.State -eq 'Failed')
-    {
-	    $testjob | Receive-Job -ErrorAction SilentlyContinue -ErrorVariable jobError
-	    $outputStream.__Streams.Error = $jobError
-    }
-    
     $testjob | Remove-Job -Force
-    ,$outputStream
+    $results
 }
 
 function CopyStreams
@@ -155,7 +163,7 @@ function CreateSessions
             if([String]::IsNullOrEmpty($item.UserName))
             {
                 Write-Verbose "No username specified. Creating session to localhost." 
-                CreateLocalSession
+                CreateLocalSession $item.ComputerName
             }
             else
             {
@@ -180,14 +188,19 @@ function CreateSessions
 }
 
 function CreateLocalSession
-{
-   if(-not $script:sessionsHashTable.ContainsKey("localhost"))
+{    
+    param(
+    [Parameter(Position=0)] $machineName = 'localhost'
+    )
+     
+   #if(-not $script:sessionsHashTable.ContainsKey("localhost"))
+    if(-not $script:sessionsHashTable.ContainsKey($machineName))
     {
         $sessionName = "Remotely" + (Get-Random).ToString()
         
-        $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName localhost -Name $sessionName)
+        $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
 
-        $script:sessionsHashTable.Add("localhost", $sessionInfo)
+        $script:sessionsHashTable.Add($machineName, $sessionInfo)
     } 
 }
 
