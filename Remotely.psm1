@@ -94,7 +94,7 @@ param(
         }
         else
         {
-            [object] $outputStream = $childJob.Output | % { $_ }            
+            [object] $outputStream = $childJob.Output | % { $_ }
         }
 
         $errorStream =    CopyStreams $childJob.Error
@@ -117,7 +117,7 @@ param(
         $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetDebugOutput -Value { return $this.__Streams.DebugOutput }
         $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetProgressOutput -Value { return $this.__Streams.ProgressOutput }
         $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetWarning -Value { return $this.__Streams.Warning }
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name Location -Value $childJob.Location
+        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name RemotelyTarget -Value $childJob.Location
 
         if($childJob.State -eq 'Failed')
         {

@@ -69,9 +69,9 @@
         $process | Should Be 11
     }
 
-    It "can get location of the remotely block" {
+    It "can get target of the remotely block" {
         $output = Remotely { 1 } 
-        $output.Location | Should Be "localhost"
+        $output.RemotelyTarget | Should Be "localhost"
     }
 
     It "can handle delete sessions" {
