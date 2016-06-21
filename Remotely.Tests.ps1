@@ -3,7 +3,17 @@
    
     It "can execute script with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
             param($NoSessionValue)
-            Remotely { 1 + 1 } -NoSession:$NoSessionValue | Should Be 2
+            $output = Remotely { 1 + 1 } -NoSession:$NoSessionValue 
+            $output | Should Be 2
+
+            if($NoSessionValue -eq $true)
+            {
+                $output.RemotelyTarget | Should BeNullOrEmpty                
+            }
+            else
+            {
+                $output.RemotelyTarget | Should Be "localhost"
+            }
         }
 
     It "can return an array with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
