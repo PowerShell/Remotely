@@ -248,8 +248,7 @@ function CreateLocalSession
         
         $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
 
-        $script:sessionsHashTable.Add($machineName, $sessionInfo)
-                
+        $script:sessionsHashTable.Add($machineName, $sessionInfo)                
     }     
 }
 
