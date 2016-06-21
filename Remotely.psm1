@@ -28,6 +28,9 @@ The script block that should throw an exception if the expectation of the test i
 .PARAMETER ArgumentList
 Arguments that will be passed to the script block.
 
+.PARAMETER NoSession
+The switch opts to use the script block without using any powershell sessions, but local runspace.
+
 .EXAMPLE
 
 Describe "Add-Numbers" {
@@ -45,6 +48,10 @@ Describe "Add-Numbers" {
         $process = Remotely { param($number) $number + 1 } -ArgumentList $num
         $process | Should Be 11
     }
+
+    It "adds positive numbers with NoSession" {
+        Remotely { 2 + 3 } -NoSession | Should Be 5
+    }
 }
 
 .LINK
@@ -57,79 +64,121 @@ param(
         [ScriptBlock] $test = {},
 
         [Parameter(Mandatory = $false, Position = 1)]
-        $ArgumentList
+        $ArgumentList, 
+
+        [Parameter(Mandatory = $false, Position =2)]
+        [switch]$NoSession
     )
-
-    if($script:sessionsHashTable -eq $null)
-    {
-        $script:sessionsHashTable = @{}
-    }
-
-    $machineConfigFile = Join-Path $PSScriptRoot "machineConfig.CSV"
-
-    CreateSessions -machineConfigFile $machineConfigFile
-
-    $sessions = @()
-
-    foreach($sessionInfo in $script:sessionsHashTable.Values.GetEnumerator())
-    {
-        CheckAndReConnect -sessionInfo $sessionInfo
-        $sessions += $sessionInfo.Session
-    }
-
-    if($sessions.Count -le 0)
-    {
-        throw "No sessions are available"
-    }
-    
-    $testjob = Invoke-Command -Session $sessions -ScriptBlock $test -AsJob -ArgumentList $ArgumentList | Wait-Job
 
     $results = @()
 
-    foreach($childJob in $testjob.ChildJobs)
+    if(-not $NoSession.IsPresent)
     {
-        if($childJob.Output.Count -eq 0)
+        if($script:sessionsHashTable -eq $null)
         {
-            [object] $outputStream = New-Object psobject
-        }
-        else
-        {
-            [object] $outputStream = $childJob.Output | % { $_ }
+            $script:sessionsHashTable = @{}
         }
 
-        $errorStream =    CopyStreams $childJob.Error
-        $verboseStream =  CopyStreams $childJob.Verbose
-        $debugStream =    CopyStreams $childJob.Debug
-        $warningStream =  CopyStreams $childJob.Warning
-        $progressStream = CopyStreams $childJob.Progress    
-    
-        $allStreams = @{ 
-                            Error = $errorStream
-                            Verbose = $verboseStream
-                            DebugOutput = $debugStream
-                            Warning = $warningStream
-                            ProgressOutput = $progressStream
-                        }
-    
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name __Streams -Value $allStreams
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetError -Value { return $this.__Streams.Error }
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetVerbose -Value { return $this.__Streams.Verbose }
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetDebugOutput -Value { return $this.__Streams.DebugOutput }
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetProgressOutput -Value { return $this.__Streams.ProgressOutput }
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetWarning -Value { return $this.__Streams.Warning }
-        $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name RemotelyTarget -Value $childJob.Location
+        $machineConfigFile = Join-Path $PSScriptRoot "machineConfig.CSV"
 
-        if($childJob.State -eq 'Failed')
+        CreateSessions -machineConfigFile $machineConfigFile
+
+        $sessions = @()
+
+        foreach($sessionInfo in $script:sessionsHashTable.Values.GetEnumerator())
         {
-	        $childJob | Receive-Job -ErrorAction SilentlyContinue -ErrorVariable jobError
-	        $outputStream.__Streams.Error = $jobError
+            CheckAndReConnect -sessionInfo $sessionInfo
+            $sessions += $sessionInfo.Session
+        }
+
+        if($sessions.Count -le 0)
+        {
+            throw "No sessions are available"
+        }
+
+        $testjob = Invoke-Command -Session $sessions -ScriptBlock $test -AsJob -ArgumentList $ArgumentList | Wait-Job
+            
+        foreach($childJob in $testjob.ChildJobs)
+        {
+            $outputStream = ConstructOutputStream -resultObj $childJob.Output -streamSource $childJob
+
+            if($childJob.State -eq 'Failed')
+            {
+	            $childJob | Receive-Job -ErrorAction SilentlyContinue -ErrorVariable jobError
+	            $outputStream.__Streams.Error = $jobError
+            }
+
+            $results += ,$outputStream
+        }
+
+        $testjob | Remove-Job -Force
+    }
+    else
+    {        
+        $ps = [Powershell]::Create()
+        $ps.runspace = [runspacefactory]::CreateRunspace()
+        $ps.runspace.open()
+
+        try
+        {
+            $res = $ps.AddScript($test.ToString()).AddArgument($ArgumentList).Invoke()        
+        }
+        catch
+        {
+            $executionError = $_.Exception.InnerException.ErrorRecord
+        }
+
+        $outputStream = ConstructOutputStream -resultObj $res -streamSource $ps.Streams
+        
+        if(($ps.Streams.Error.Count -eq 0) -and ($ps.HadErrors))
+        {
+            $outputStream.__streams.Error = $executionError;
         }
 
         $results += ,$outputStream
     }
 
-    $testjob | Remove-Job -Force
     $results
+}
+
+function ConstructOutputStream
+{
+    param(
+        $resultObj,
+        $streamSource
+    )
+
+    if($resultObj.Count -eq 0)
+    {
+        [object] $outputStream = New-Object psobject
+    }
+    else
+    {
+        [object] $outputStream = $resultObj | % { $_ }
+    }
+
+    $errorStream =    CopyStreams $streamSource.Error
+    $verboseStream =  CopyStreams $streamSource.Verbose
+    $debugStream =    CopyStreams $streamSource.Debug
+    $warningStream =  CopyStreams $streamSource.Warning
+    $progressStream = CopyStreams $streamSource.Progress    
+    
+    $allStreams = @{ 
+                        Error = $errorStream
+                        Verbose = $verboseStream
+                        DebugOutput = $debugStream
+                        Warning = $warningStream
+                        ProgressOutput = $progressStream
+                    }
+    
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name __Streams -Value $allStreams
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetError -Value { return $this.__Streams.Error }
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetVerbose -Value { return $this.__Streams.Verbose }
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetDebugOutput -Value { return $this.__Streams.DebugOutput }
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetProgressOutput -Value { return $this.__Streams.ProgressOutput }
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType ScriptMethod -Name GetWarning -Value { return $this.__Streams.Warning }
+    $outputStream = Add-Member -InputObject $outputStream -PassThru -MemberType NoteProperty -Name RemotelyTarget -Value $childJob.Location
+    return $outputStream
 }
 
 function CopyStreams
@@ -192,16 +241,18 @@ function CreateLocalSession
     param(
     [Parameter(Position=0)] $machineName = 'localhost'
     )
-     
-   #if(-not $script:sessionsHashTable.ContainsKey("localhost"))
+   
     if(-not $script:sessionsHashTable.ContainsKey($machineName))
     {
-        $sessionName = "Remotely" + (Get-Random).ToString()
+        if(-not $NoSession.IsPresent)
+        {
+            $sessionName = "Remotely" + (Get-Random).ToString()
         
-        $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
+            $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
 
-        $script:sessionsHashTable.Add($machineName, $sessionInfo)
-    } 
+            $script:sessionsHashTable.Add($machineName, $sessionInfo)
+        }        
+    }     
 }
 
 function CreateSessionInfo

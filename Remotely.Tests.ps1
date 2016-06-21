@@ -1,36 +1,44 @@
 ﻿Describe "Add-Numbers" {
+    $testcases = @( @{NoSessionValue = $true}, @{NoSessionValue = $false})
    
-    It "can execute script" {
-            Remotely { 1 + 1 } | Should Be 2
+    It "can execute script with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+            param($NoSessionValue)
+            Remotely { 1 + 1 } -NoSession:$NoSessionValue | Should Be 2
         }
 
-    It "can return an array" {
-        $returnObjs = Remotely { 1..10 }
+    It "can return an array with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $returnObjs = Remotely { 1..10 } -NoSession:$NoSessionValue
         $returnObjs.count | Should Be 10
     }
 
-    It "can return a hashtable" {
-        $returnObjs = Remotely { @{Value = 2} }
+    It "can return a hashtable with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $returnObjs = Remotely { @{Value = 2} } -NoSession:$NoSessionValue
         $returnObjs["Value"] | Should Be 2
     }
 
-    It "can get verbose message" {
-        $output = Remotely { Write-Verbose -Verbose "Verbose Message" }
+    It "can get verbose message with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely { Write-Verbose -Verbose "Verbose Message" } -NoSession:$NoSessionValue
         $output.GetVerbose() | Should Be "Verbose Message"
     }
 
-    It "can get error message" {
-        $output = Remotely { Write-Error "Error Message" }
+    It "can get error message with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely { Write-Error "Error Message" } -NoSession:$NoSessionValue
         $output.GetError() | Should Be "Error Message"
     }
 
-    It "can get warning message" {
-        $output = Remotely { Write-Warning "Warning Message" }
+    It "can get warning message with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely { Write-Warning "Warning Message" } -NoSession:$NoSessionValue
         $output.GetWarning() | Should Be "Warning Message"
     }
 
-    It "can get debug message" {
-        $output = Remotely { 
+    It "can get debug message with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely -NoSession:$NoSessionValue { 
                 $originalPreference = $DebugPreference
                 $DebugPreference = "continue"
                 Write-Debug "Debug Message" 
@@ -39,34 +47,38 @@
         $output.GetDebugOutput() | Should Be "Debug Message"
     }
 
-    It "can get progress message" {
-        $output = Remotely { Write-Progress -Activity "Test" -Status "Testing" -Id 1 -PercentComplete 100 -SecondsRemaining 0 }
+    It "can get progress message with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely -NoSession:$NoSessionValue { Write-Progress -Activity "Test" -Status "Testing" -Id 1 -PercentComplete 100 -SecondsRemaining 0 }
         $output.GetProgressOutput().Activity | Should Be "Test"
         $output.GetProgressOutput().StatusDescription | Should Be "Testing"
         $output.GetProgressOutput().ActivityId | Should Be 1
     }
 
-    It 'can return $false as a value' {
-        $output = Remotely { $false }
+    It 'can return $false as a value with NoSessionValue : <NoSessionValue>' -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely { $false } -NoSession:$NoSessionValue
         $output | Should Be $false
     }
 
-    It 'can return throw messages' {
-        $output = Remotely { throw 'bad' }
+    It 'can return throw messages with NoSessionValue : <NoSessionValue>' -TestCases $testcases {
+        param($NoSessionValue)
+        $output = Remotely { throw 'bad' } -NoSession:$NoSessionValue
         $output.GetError().FullyQualifiedErrorId | Should Be 'bad'
-    }
+    }        
     
-    It "can get remote sessions" {
+    It "can pass parameters to remote block with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
+        param($NoSessionValue)
+        $num = 10
+        $process = Remotely { param($number) $number + 1 } -ArgumentList $num -NoSession:$NoSessionValue
+        $process | Should Be 11
+    }
+
+    It "can get remote sessions" {        
         Remotely { 1 + 1 } | Should Be 2
         $remoteSessions = Get-RemoteSession
 
         $remoteSessions | % { $remoteSessions.Name -match "Remotely"  | Should Be $true} 
-    }
-    
-    It "can pass parameters to remote block" {
-        $num = 10
-        $process = Remotely { param($number) $number + 1 } -ArgumentList $num
-        $process | Should Be 11
     }
 
     It "can get target of the remotely block" {
