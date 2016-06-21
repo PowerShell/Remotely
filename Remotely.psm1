@@ -243,15 +243,13 @@ function CreateLocalSession
     )
    
     if(-not $script:sessionsHashTable.ContainsKey($machineName))
-    {
-        if(-not $NoSession.IsPresent)
-        {
-            $sessionName = "Remotely" + (Get-Random).ToString()
+    {        
+        $sessionName = "Remotely" + (Get-Random).ToString()
         
-            $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
+        $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
 
-            $script:sessionsHashTable.Add($machineName, $sessionInfo)
-        }        
+        $script:sessionsHashTable.Add($machineName, $sessionInfo)
+                
     }     
 }
 
