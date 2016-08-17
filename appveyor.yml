@@ -9,6 +9,13 @@ install:
         cmd /c reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f
         Restart-Service WinRM
         Enable-PSRemoting -Force -SkipNetworkProfileCheck 
+        try {
+            $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
+            $principal = New-Object Security.Principal.WindowsPrincipal -ArgumentList $identity
+            Write-Verbose "Admin: $($principal.IsInRole( [Security.Principal.WindowsBuiltInRole]::Administrator ))"
+        } catch {
+            throw "Failed to determine if the current user has elevated privileges. The error was: '{0}'." -f $_
+        }
 #---------------------------------#
 #      build configuration        #
 #---------------------------------#
