@@ -21,7 +21,6 @@ Function Update-ConfigContentTable
         }
         
         $configContentTable.ComputerName = $computername
-        $script:expectedRemotelyTarget = $computername
     }
 
     if($global:AppveyorRemotelyUserName)
@@ -37,7 +36,6 @@ Function Update-ConfigContentTable
     return $configContentTable
 }
 
-$script:expectedRemotelyTarget = 'localhost'
 Describe "Add-Numbers" {
     BeforeAll {
         $configFile = (join-path $PSScriptRoot 'machineConfig.csv')
@@ -50,6 +48,13 @@ Describe "Add-Numbers" {
    
     It "can execute script with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
             param($NoSessionValue)
+
+            $expectedRemotelyTarget = 'localhost'
+            if($configContentTable['Computername'])
+            {
+                $expectedRemotelyTarget = $configContentTable['Computername']
+            }
+
             $output = Remotely { 1 + 1 } -NoSession:$NoSessionValue 
             $output | Should Be 2
 
@@ -59,7 +64,7 @@ Describe "Add-Numbers" {
             }
             else
             {
-                $output.RemotelyTarget | Should Be $script:expectedRemotelyTarget
+                $output.RemotelyTarget | Should Be $expectedRemotelyTarget
             }
         }
 
@@ -139,8 +144,14 @@ Describe "Add-Numbers" {
     }
 
     It "can get target of the remotely block" {
+        $expectedRemotelyTarget = 'localhost'
+        if($configContentTable['Computername'])
+        {
+            $expectedRemotelyTarget = $configContentTable['Computername']
+        }
+        
         $output = Remotely { 1 } 
-        $output.RemotelyTarget | Should Be $script:expectedRemotelyTarget
+        $output.RemotelyTarget | Should Be $expectedRemotelyTarget
     }
 
     It "can handle delete sessions" {
@@ -202,8 +213,6 @@ Describe "ConfigurationName" {
         Update-ConfigContentTable -configContentTable $configContentTable
         $configContent = @([pscustomobject] $configContentTable) | ConvertTo-Csv -NoTypeInformation
         $configContent | Out-File -FilePath $configFile -Force
-        cat $configFile | %{ Write-Verbose "configfile: $_" -Verbose}
-
 
         it "Should connect when a configurationName is specified" {
            
@@ -214,6 +223,7 @@ Describe "ConfigurationName" {
     }
 
     Context "Invalid configuration name" {
+        
         Write-Verbose "Clearing remote session..." -Verbose
         Clear-RemoteSession 
         $configContentTable = @{
@@ -225,10 +235,16 @@ Describe "ConfigurationName" {
         Update-ConfigContentTable -configContentTable $configContentTable
         $configContent = @([pscustomobject] $configContentTable) | ConvertTo-Csv -NoTypeInformation
         $configContent | Out-File -FilePath $configFile -Force
-        cat $configFile | %{ Write-Verbose "configfile: $_" -Verbose}
+
+        $expectedRemotelyTarget = 'localhost'
+        if($configContentTable['Computername'])
+        {
+            $expectedRemotelyTarget = $configContentTable['Computername']
+        }
+
         
         it "Should not connect to an invalid ConfigurationName" {
-            {$results = Remotely { 1 + 1 }} | should throw "Connecting to remote server $script:expectedRemotelyTarget failed with the following error message : The WS-Management service cannot process the request. Cannot find the Microsoft.PowerShell2 session configuration in the WSMan: drive on the $script:expectedRemotelyTarget computer. For more information, see the about_Remote_Troubleshooting Help topic."
+            {$results = Remotely { 1 + 1 }} | should throw "Connecting to remote server $expectedRemotelyTarget failed with the following error message : The WS-Management service cannot process the request. Cannot find the Microsoft.PowerShell2 session configuration in the WSMan: drive on the $expectedRemotelyTarget computer. For more information, see the about_Remote_Troubleshooting Help topic."
         }  
     }
 }
