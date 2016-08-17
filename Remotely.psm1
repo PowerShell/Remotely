@@ -16,9 +16,11 @@ The CSV file is expected to be placed next to this file.
 If the CSV file is not found or username is not specified, the machine name is ignored and runspace to localhost
 is created for executing the script block.
 
+If the ConfigurationName is not in the CSV file, Remotely will default to Microsoft.PowerShell.
+
 If the password has a ',' then it needs to be escaped by using quotes like: 
-ComputerName,Username,Password
-machinename,user,"Some,password"
+ComputerName,Username,Password,ConfigurationName
+machinename,user,"Some,password",Microsoft.Powershell
 
 To get access to the streams GetVerbose, GetDebugOutput, GetError, GetProgressOutput, GetWarning can be used on the resultant object.
 
