@@ -16,9 +16,11 @@ The CSV file is expected to be placed next to this file.
 If the CSV file is not found or username is not specified, the machine name is ignored and runspace to localhost
 is created for executing the script block.
 
+If the ConfigurationName is not in the CSV file, Remotely will default to Microsoft.PowerShell.
+
 If the password has a ',' then it needs to be escaped by using quotes like: 
-ComputerName,Username,Password
-machinename,user,"Some,password"
+ComputerName,Username,Password,ConfigurationName
+machinename,user,"Some,password",Microsoft.Powershell
 
 To get access to the streams GetVerbose, GetDebugOutput, GetError, GetProgressOutput, GetWarning can be used on the resultant object.
 
@@ -211,10 +213,16 @@ function CreateSessions
 
         foreach($item in $machineInfo)
         {
+            $configurationName = 'Microsoft.PowerShell'
+            if($item.ConfigurationName)
+            {
+                $configurationName = $item.ConfigurationName
+            }
+
             if([String]::IsNullOrEmpty($item.UserName))
             {
                 Write-Verbose "No username specified. Creating session to localhost." 
-                CreateLocalSession $item.ComputerName
+                CreateLocalSession $item.ComputerName -configurationName $configurationName
             }
             else
             {
@@ -223,9 +231,10 @@ function CreateSessions
                 
                 if(-not $script:sessionsHashTable.ContainsKey($item.ComputerName))
                 {                                   
-                    $sessionName = "Remotely" + (Get-Random).ToString()                                        
+                    $sessionName = "Remotely" + (Get-Random).ToString()    
 
-                    $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $item.ComputerName -Credential $cred -Name $sessionName) -Credential $cred
+                    Write-Verbose "Creating new session, computer: $($item.ComputerName); ConfigurationName: $($ConfigurationName) "
+                    $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $item.ComputerName -Credential $cred -Name $sessionName -configurationname $configurationName  -ErrorAction Stop) -Credential $cred
                     $script:sessionsHashTable.Add($sessionInfo.session.ComputerName, $sessionInfo)                    
                 }               
             }
@@ -241,14 +250,16 @@ function CreateSessions
 function CreateLocalSession
 {    
     param(
-    [Parameter(Position=0)] $machineName = 'localhost'
+    [Parameter(Position=0)] $machineName = 'localhost',
+    $configurationName = 'Microsoft.PowerShell'
     )
    
     if(-not $script:sessionsHashTable.ContainsKey($machineName))
     {        
         $sessionName = "Remotely" + (Get-Random).ToString()
         
-        $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName)
+        Write-Verbose "Creating new local session, ConfigurationName: $($ConfigurationName) "
+        $sessionInfo = CreateSessionInfo -Session (New-PSSession -ComputerName $machineName -Name $sessionName -ConfigurationName $configurationName -ErrorAction Stop)
 
         $script:sessionsHashTable.Add($machineName, $sessionInfo)                
     }     
@@ -261,7 +272,7 @@ function CreateSessionInfo
         [System.Management.Automation.PSCredential] $Credential
         )
 
-    return [PSCustomObject] @{ Session = $Session; Credential = $Credential }
+    return [PSCustomObject] @{ Session = $Session; Credential = $Credential; ConfigurationName=$Session.ConfigurationName  }
 }
 
 function CheckAndReconnect
@@ -274,11 +285,12 @@ function CheckAndReconnect
         
         if($sessionInfo.Session.ComputerName -ne "localhost")
         {
-            $sessionInfo.Session = New-PSSession -ComputerName $sessionInfo.Session.ComputerName -Credential $sessionInfo.Credential
+            $sessionInfo.Session = New-PSSession -ComputerName $sessionInfo.Session.ComputerName -Credential $sessionInfo.Credential  -configurationname $sessionInfo.ConfigurationName
         }
         else
         {
-            $sessionInfo.Session = New-PSSession -ComputerName 'localhost'
+            Write-Verbose "Creating local session with configurationname:$sessionInfo.ConfigurationName"
+            $sessionInfo.Session = New-PSSession -ComputerName 'localhost' -configurationname $sessionInfo.ConfigurationName
         }
     }
 }
