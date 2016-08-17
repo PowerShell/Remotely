@@ -8,6 +8,7 @@ install:
         Install-Module -Name Pester -Repository PSGallery -Force
         cmd /c reg add HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\system /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f
         Restart-Service WinRM
+        Enable-PSRemoting -Force -SkipNetworkProfileCheck 
 #---------------------------------#
 #      build configuration        #
 #---------------------------------#
