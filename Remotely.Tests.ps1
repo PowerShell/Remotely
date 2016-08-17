@@ -1,4 +1,51 @@
-﻿Describe "Add-Numbers" {
+﻿# Function to update the table that defines the machineconfig.csv 
+# based on test environment variables
+Function Update-ConfigContentTable 
+{
+    param(
+        [parameter(Mandatory=$true)]
+        [HashTable]$configContentTable
+        
+    )
+
+    if($global:AppveyorRemotelyUserName -or $global:AppveyorRemotelyPassword)
+    {
+        $computername = $configContentTable.ComputerName
+        if($computername -ieq 'localhost')
+        {
+            $computername = '127.0.0.1'
+        }
+        elseif ( $computername -ieq '.')
+        {
+            $computername = '::1'
+        }
+        
+        $configContentTable.ComputerName = $computername
+        $script:expectedRemotelyTarget = $computername
+    }
+
+    if($global:AppveyorRemotelyUserName)
+    {
+        $configContentTable['Username']=$global:AppveyorRemotelyUserName
+    }
+
+    if($global:AppveyorRemotelyPassword)
+    {
+        $configContentTable['Password']=$global:AppveyorRemotelyPassword
+    }
+
+    return $configContentTable
+}
+
+$script:expectedRemotelyTarget = 'localhost'
+Describe "Add-Numbers" {
+    BeforeAll {
+        $configFile = (join-path $PSScriptRoot 'machineConfig.csv')
+        $configContentTable = @{ComputerName = "localhost" }
+        Update-ConfigContentTable -configContentTable $configContentTable
+        $configContent = @([pscustomobject] $configContentTable) | ConvertTo-Csv -NoTypeInformation
+        $configContent | Out-File -FilePath $configFile -Force
+    }
     $testcases = @( @{NoSessionValue = $true}, @{NoSessionValue = $false})
    
     It "can execute script with NoSessionValue : <NoSessionValue>" -TestCases $testcases {
@@ -12,7 +59,7 @@
             }
             else
             {
-                $output.RemotelyTarget | Should Be "localhost"
+                $output.RemotelyTarget | Should Be $script:expectedRemotelyTarget
             }
         }
 
@@ -93,7 +140,7 @@
 
     It "can get target of the remotely block" {
         $output = Remotely { 1 } 
-        $output.RemotelyTarget | Should Be "localhost"
+        $output.RemotelyTarget | Should Be $script:expectedRemotelyTarget
     }
 
     It "can handle delete sessions" {
@@ -110,7 +157,11 @@
     It "can execute against more than 1 remote machines" {
         # Testing with no configuration name for compatibility
         $configFile = (join-path $PSScriptRoot 'machineConfig.csv')
-        $configContent = @([pscustomobject] @{ComputerName = "localhost" }, [pscustomobject] @{ComputerName = "." }) | ConvertTo-Csv -NoTypeInformation
+        $configContentTable = @{ComputerName = "localhost" }
+        Update-ConfigContentTable -configContentTable $configContentTable
+        $configContentTable2 = @{ComputerName = "." }
+        Update-ConfigContentTable -configContentTable $configContentTable2
+        $configContent = @([pscustomobject] $configContentTable, [pscustomobject] $configContentTable2) | ConvertTo-Csv -NoTypeInformation
         $configContent | Out-File -FilePath $configFile -Force
         
         try
@@ -142,13 +193,17 @@ Describe "ConfigurationName" {
             Remove-Item $configFile -ErrorAction SilentlyContinue -Force
     }
     Context "Default configuration name" {
-        $configContent = @([pscustomobject] @{
+        $configContentTable = @{
             ComputerName = "localhost"
             Username = $null
             Password = $null
             ConfigurationName = "Microsoft.PowerShell"
-        }) | ConvertTo-Csv -NoTypeInformation
+        }
+        Update-ConfigContentTable -configContentTable $configContentTable
+        $configContent = @([pscustomobject] $configContentTable) | ConvertTo-Csv -NoTypeInformation
         $configContent | Out-File -FilePath $configFile -Force
+        cat $configFile | %{ Write-Verbose "configfile: $_" -Verbose}
+
 
         it "Should connect when a configurationName is specified" {
            
@@ -161,16 +216,19 @@ Describe "ConfigurationName" {
     Context "Invalid configuration name" {
         Write-Verbose "Clearing remote session..." -Verbose
         Clear-RemoteSession 
-        $configContent = @([pscustomobject] @{
+        $configContentTable = @{
             ComputerName = "localhost"
             Username = $null
             Password = $null
             ConfigurationName = "Microsoft.PowerShell2"
-        }) | ConvertTo-Csv -NoTypeInformation
+        }
+        Update-ConfigContentTable -configContentTable $configContentTable
+        $configContent = @([pscustomobject] $configContentTable) | ConvertTo-Csv -NoTypeInformation
         $configContent | Out-File -FilePath $configFile -Force
+        cat $configFile | %{ Write-Verbose "configfile: $_" -Verbose}
         
         it "Should not connect to an invalid ConfigurationName" {
-            {$results = Remotely { 1 + 1 }} | should throw "Connecting to remote server localhost failed with the following error message : The WS-Management service cannot process the request. Cannot find the Microsoft.PowerShell2 session configuration in the WSMan: drive on the localhost computer. For more information, see the about_Remote_Troubleshooting Help topic."
+            {$results = Remotely { 1 + 1 }} | should throw "Connecting to remote server $script:expectedRemotelyTarget failed with the following error message : The WS-Management service cannot process the request. Cannot find the Microsoft.PowerShell2 session configuration in the WSMan: drive on the $script:expectedRemotelyTarget computer. For more information, see the about_Remote_Troubleshooting Help topic."
         }  
     }
 }
