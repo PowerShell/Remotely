@@ -108,6 +108,7 @@
     }
     
     It "can execute against more than 1 remote machines" {
+        # Testing with no configuration name for compatibility
         $configFile = (join-path $PSScriptRoot 'machineConfig.csv')
         $configContent = @([pscustomobject] @{ComputerName = "localhost" }, [pscustomobject] @{ComputerName = "." }) | ConvertTo-Csv -NoTypeInformation
         $configContent | Out-File -FilePath $configFile -Force
@@ -131,9 +132,51 @@
             Remove-Item $configFile -ErrorAction SilentlyContinue -Force
         }
     }
-    
+}
+
+Describe "ConfigurationName" {
+    BeforeAll {
+        $configFile = (join-path $PSScriptRoot 'machineConfig.csv')
+    }
+    AfterAll {
+            Remove-Item $configFile -ErrorAction SilentlyContinue -Force
+    }
+    Context "Default configuration name" {
+        $configContent = @([pscustomobject] @{
+            ComputerName = "localhost"
+            Username = $null
+            Password = $null
+            ConfigurationName = "Microsoft.PowerShell"
+        }) | ConvertTo-Csv -NoTypeInformation
+        $configContent | Out-File -FilePath $configFile -Force
+
+        it "Should connect when a configurationName is specified" {
+           
+            $results = Remotely { 1 + 1 }  
+        
+            $results | Should Be 2 
+        }
+    }
+
+    Context "Invalid configuration name" {
+        Write-Verbose "Clearing remote session..." -Verbose
+        Clear-RemoteSession 
+        $configContent = @([pscustomobject] @{
+            ComputerName = "localhost"
+            Username = $null
+            Password = $null
+            ConfigurationName = "Microsoft.PowerShell2"
+        }) | ConvertTo-Csv -NoTypeInformation
+        $configContent | Out-File -FilePath $configFile -Force
+        
+        it "Should not connect to an invalid ConfigurationName" {
+            {$results = Remotely { 1 + 1 }} | should throw "Connecting to remote server localhost failed with the following error message : The WS-Management service cannot process the request. Cannot find the Microsoft.PowerShell2 session configuration in the WSMan: drive on the localhost computer. For more information, see the about_Remote_Troubleshooting Help topic."
+        }  
+    }
+}
+Describe "Clear-RemoteSession" {
     It "can clear remote sessions" {
         Clear-RemoteSession
         Get-PSSession -Name Remotely* | Should Be $null                
     }
-}
+} 
