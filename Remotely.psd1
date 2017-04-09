@@ -4,7 +4,7 @@
 ModuleToProcess = 'Remotely.psm1'
 
 # Version number of this module.
-ModuleVersion = '1.0.0'
+ModuleVersion = '1.0.1'
 
 # ID used to uniquely identify this module
 GUID = 'a20c9efd-077e-4c53-a500-f74dec071799'
