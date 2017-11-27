@@ -81,7 +81,8 @@ param(
             $script:sessionsHashTable = @{}
         }
 
-        $machineConfigFile = Join-Path $PSScriptRoot "machineConfig.CSV"
+        $CallingScriptsDirectory = [System.IO.Path]::GetDirectoryName($MyInvocation.PSCommandPath)
+        $machineConfigFile = Join-Path $CallingScriptsDirectory "machineConfig.CSV"
 
         CreateSessions -machineConfigFile $machineConfigFile
 
