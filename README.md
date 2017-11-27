@@ -4,17 +4,17 @@ Executes a script block against a remote runspace. Remotely can be used with Pes
 
 Description
 ======================
-The contents on the Remotely block are executed on a remote runspace. The connection information of the runspace is supplied in a CSV file of the format:
+The contents on the Remotely block are executed on a remote runspace. The connection information of the runspace is supplied in a CSV file with header values of `ComputerName,Username,Password`. For example:
 
 ```
 ComputerName,Username,Password
-ComputerName1,Username1,Password1
-ComputerName2,Username2,Password2
+FooComputer,FooUsername,FooPassword
+BarComputer,BarUsername,BarPassword
+...
+nComputer,nUser,nPassword
 ```
 
-The filename must be `machineConfig.csv`.
-
-The CSV file is expected to be placed next to this file. 
+The name of the csv must be `machineConfig.csv` and must be in the same directory as the script\code that calls Remotely.
 
 If the CSV file is not found or username is not specified, the machine name is ignored and runspace to localhost
 is created for executing the script block.
@@ -23,8 +23,8 @@ If the password has a ',' then it needs to be escaped by using quotes like:
 
 ```
 ComputerName,Username,Password
-ComputerName1,Username1,Password1
-ComputerName2,Username2,"Some,other,password"
+FooComputer,FooUsername,FooPassword
+BarComputer,BarUsername,"Some,other,password"
 ```
 
 To get access to the streams, use GetVerbose, GetDebugOutput, GetError, GetProgressOutput,
